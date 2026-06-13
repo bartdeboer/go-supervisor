@@ -24,11 +24,17 @@ func main() {
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			cfg = initcfg.Config{}
+		} else if park {
+			warn("could not read config; parking with no services: " + err.Error())
+			cfg = initcfg.Config{}
 		} else {
 			fatal(err)
 		}
 	}
 	warn("loaded " + strconv.Itoa(len(cfg.Services)) + " services")
+	if len(cfg.Services) > 0 {
+		warn("configured services are not started by this version yet")
+	}
 	if park {
 		warn("park mode requested")
 	}
