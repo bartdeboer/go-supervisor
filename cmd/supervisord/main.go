@@ -7,6 +7,8 @@ import (
 	"github.com/bartdeboer/go-supervisor/initcfg"
 )
 
+const defaultConfigPath = "/home/agent/state/supervisord.config.bin"
+
 func main() {
 	configPath, park, fallback, err := parseArgs(os.Args[1:])
 	if err != nil {
@@ -16,12 +18,12 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	fmt.Fprintf(os.Stderr, "ctg-init: loaded %d services\n", len(cfg.Services))
+	fmt.Fprintf(os.Stderr, "supervisord: loaded %d services\n", len(cfg.Services))
 	if park {
-		fmt.Fprintln(os.Stderr, "ctg-init: park mode requested")
+		fmt.Fprintln(os.Stderr, "supervisord: park mode requested")
 	}
 	if len(fallback) > 0 {
-		fmt.Fprintf(os.Stderr, "ctg-init: fallback command configured: %v\n", fallback)
+		fmt.Fprintf(os.Stderr, "supervisord: fallback command configured: %v\n", fallback)
 	}
 	// Runtime supervision intentionally follows in the next slice.
 }
@@ -47,7 +49,7 @@ func parseArgs(args []string) (configPath string, park bool, fallback []string, 
 		}
 	}
 	if configPath == "" {
-		return "", false, nil, fmt.Errorf("missing --config")
+		configPath = defaultConfigPath
 	}
 	return configPath, park, fallback, nil
 }
@@ -63,5 +65,5 @@ func fatal(err error) {
 }
 
 func usage() string {
-	return "usage: ctg-init --config <path> [--park] [-- <fallback> [args...]]"
+	return "usage: supervisord [--config <path>] [--park] [-- <fallback> [args...]]"
 }
