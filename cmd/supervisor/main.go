@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/bartdeboer/go-clir"
 	"github.com/bartdeboer/go-supervisor/initcfg"
@@ -65,7 +66,7 @@ func newRouter(a app) *clir.Router {
 				return removeService(a, req.Params["name"])
 			})
 		})
-		b.Handle("reload", "Report reload behavior", func(req *clir.Request) error {
+		b.Handle("reload", "Signal running supervisord to reload config", func(req *clir.Request) error {
 			if len(req.Extra) != 0 {
 				return unexpectedArgs(req.Extra)
 			}
@@ -149,6 +150,7 @@ func enableService(a app, args []string) error {
 		return err
 	}
 	fmt.Fprintf(a.out, "enabled service: %s\n", svc.Name)
+	fmt.Fprintln(a.out, "run `supervisor reload` to apply")
 	return nil
 }
 
@@ -175,6 +177,7 @@ func removeService(a app, name string) error {
 		return err
 	}
 	fmt.Fprintf(a.out, "removed service: %s\n", name)
+	fmt.Fprintln(a.out, "run `supervisor reload` to apply")
 	return nil
 }
 
@@ -205,8 +208,22 @@ func upsertService(services []initcfg.Service, svc initcfg.Service) []initcfg.Se
 }
 
 func reloadSupervisord(a app) error {
-	fmt.Fprintln(a.out, "reload pending: live supervisord reload is not implemented yet")
+	if !pidOneIsSupervisord() {
+		return fmt.Errorf("pid 1 is not supervisord; cannot reload")
+	}
+	if err := syscall.Kill(1, syscall.SIGHUP); err != nil {
+		return err
+	}
+	fmt.Fprintln(a.out, "reload signaled")
 	return nil
+}
+
+func pidOneIsSupervisord() bool {
+	data, err := os.ReadFile("/proc/1/comm")
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(data)) == "supervisord"
 }
 
 type envFlags []string

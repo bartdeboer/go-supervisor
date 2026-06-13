@@ -46,5 +46,4 @@ supervisor service list
 supervisor service remove web
 ```
 
-`supervisor reload` is currently informational; live reload is performed by
-sending `SIGHUP` to `supervisord`.
+`supervisor reload` sends `SIGHUP` to `supervisord` when it is PID 1.
