@@ -12,7 +12,6 @@ import (
 	"time"
 
 	supervisor "github.com/bartdeboer/go-supervisor"
-	"github.com/bartdeboer/go-supervisor/internal/defaults"
 )
 
 const (
@@ -467,7 +466,7 @@ func parseArgs(args []string) (configPath string, park bool, fallback []string, 
 			return "", false, nil, errors.New("unknown argument: " + args[i])
 		}
 	}
-	configPath = defaults.ConfigPathFrom(configPath, os.Getenv)
+	configPath = supervisor.ConfigPath(configPath, os.Getenv)
 	return configPath, park, fallback, nil
 }
 

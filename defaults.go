@@ -1,11 +1,11 @@
-package defaults
+package supervisor
 
 import "strings"
 
 const ConfigEnv = "SUPERVISORD_CONFIG"
-const ConfigPath = "/home/agent/state/supervisord.config.bin"
+const DefaultConfigPath = "/home/agent/state/supervisord.config.bin"
 
-func ConfigPathFrom(flagValue string, getenv func(string) string) string {
+func ConfigPath(flagValue string, getenv func(string) string) string {
 	if value := strings.TrimSpace(flagValue); value != "" {
 		return value
 	}
@@ -14,5 +14,5 @@ func ConfigPathFrom(flagValue string, getenv func(string) string) string {
 			return value
 		}
 	}
-	return ConfigPath
+	return DefaultConfigPath
 }

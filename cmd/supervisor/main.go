@@ -13,7 +13,6 @@ import (
 
 	"github.com/bartdeboer/go-clir"
 	supervisor "github.com/bartdeboer/go-supervisor"
-	"github.com/bartdeboer/go-supervisor/internal/defaults"
 )
 
 type app struct {
@@ -24,7 +23,7 @@ type app struct {
 
 func main() {
 	a := app{
-		configPath: defaults.ConfigPathFrom("", os.Getenv),
+		configPath: supervisor.ConfigPath("", os.Getenv),
 		out:        os.Stdout,
 		err:        os.Stderr,
 	}
