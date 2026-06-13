@@ -2,10 +2,11 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/bartdeboer/go-supervisor/initcfg"
@@ -27,12 +28,12 @@ func main() {
 			fatal(err)
 		}
 	}
-	fmt.Fprintf(os.Stderr, "supervisord: loaded %d services\n", len(cfg.Services))
+	warn("loaded " + strconv.Itoa(len(cfg.Services)) + " services")
 	if park {
-		fmt.Fprintln(os.Stderr, "supervisord: park mode requested")
+		warn("park mode requested")
 	}
 	if len(fallback) > 0 {
-		fmt.Fprintf(os.Stderr, "supervisord: fallback command configured: %v\n", fallback)
+		warn("fallback command configured: " + strings.Join(fallback, " "))
 	}
 	if park {
 		waitForShutdownSignal()
@@ -57,7 +58,7 @@ func waitForShutdownSignal() {
 		case syscall.SIGCHLD:
 			reapExitedChildren()
 		default:
-			fmt.Fprintf(os.Stderr, "supervisord: received %s; exiting\n", sig)
+			warn("received " + sig.String() + "; exiting")
 			reapExitedChildren()
 			return
 		}
@@ -69,13 +70,13 @@ func reapExitedChildren() {
 		var status syscall.WaitStatus
 		pid, err := syscall.Wait4(-1, &status, syscall.WNOHANG, nil)
 		if pid > 0 {
-			fmt.Fprintf(os.Stderr, "supervisord: reaped child pid=%d status=%d\n", pid, status)
+			warn("reaped child pid=" + strconv.Itoa(pid) + " status=" + strconv.Itoa(int(status)))
 			continue
 		}
 		if pid == 0 || errors.Is(err, syscall.ECHILD) {
 			return
 		}
-		fmt.Fprintf(os.Stderr, "supervisord: reap error: %v\n", err)
+		warn("reap error: " + err.Error())
 		return
 	}
 }
@@ -87,7 +88,7 @@ func parseArgs(args []string) (configPath string, park bool, fallback []string, 
 		case "--config":
 			i++
 			if i >= len(args) || args[i] == "" {
-				return "", false, nil, fmt.Errorf("missing --config value")
+				return "", false, nil, errors.New("missing --config value")
 			}
 			configPath = args[i]
 		case "--park":
@@ -100,7 +101,7 @@ func parseArgs(args []string) (configPath string, park bool, fallback []string, 
 		case "--help", "-h":
 			return "", false, nil, errHelp{}
 		default:
-			return "", false, nil, fmt.Errorf("unknown argument: %s", args[i])
+			return "", false, nil, errors.New("unknown argument: " + args[i])
 		}
 	}
 	configPath = defaults.ConfigPathFrom(configPath, os.Getenv)
@@ -112,9 +113,13 @@ type errHelp struct{}
 func (errHelp) Error() string { return usage() }
 
 func fatal(err error) {
-	fmt.Fprintln(os.Stderr, err)
-	fmt.Fprintln(os.Stderr, usage())
+	warn(err.Error())
+	_, _ = os.Stderr.WriteString(usage() + "\n")
 	os.Exit(2)
+}
+
+func warn(s string) {
+	_, _ = os.Stderr.WriteString("supervisord: " + s + "\n")
 }
 
 func usage() string {

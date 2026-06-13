@@ -1,22 +1,22 @@
 package initcfg
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
 
 func Validate(cfg Config) error {
 	if len(cfg.Services) > MaxServices {
-		return fmt.Errorf("%w: %d > %d", ErrTooManyServices, len(cfg.Services), MaxServices)
+		return detail(ErrTooManyServices, strconv.Itoa(len(cfg.Services))+" > "+strconv.Itoa(MaxServices))
 	}
 	seen := make(map[string]struct{}, len(cfg.Services))
 	for i, svc := range cfg.Services {
 		if err := ValidateService(svc); err != nil {
-			return fmt.Errorf("service %d: %w", i, err)
+			return detail(err, "service "+strconv.Itoa(i))
 		}
 		if _, ok := seen[svc.Name]; ok {
-			return fmt.Errorf("%w: duplicate service name %q", ErrInvalidService, svc.Name)
+			return detail(ErrInvalidService, "duplicate service name "+svc.Name)
 		}
 		seen[svc.Name] = struct{}{}
 	}
@@ -25,7 +25,7 @@ func Validate(cfg Config) error {
 
 func ValidateService(svc Service) error {
 	if strings.TrimSpace(svc.Name) == "" {
-		return fmt.Errorf("%w: missing name", ErrInvalidService)
+		return detail(ErrInvalidService, "missing name")
 	}
 	if err := validateText("name", svc.Name, MaxNameLen); err != nil {
 		return err
@@ -36,45 +36,49 @@ func ValidateService(svc Service) error {
 		}
 	}
 	if len(svc.Argv) == 0 {
-		return fmt.Errorf("%w: missing argv", ErrInvalidService)
+		return detail(ErrInvalidService, "missing argv")
 	}
 	if len(svc.Argv) > MaxArgv {
-		return fmt.Errorf("%w: argv count %d > %d", ErrInvalidService, len(svc.Argv), MaxArgv)
+		return detail(ErrInvalidService, "argv count "+strconv.Itoa(len(svc.Argv))+" > "+strconv.Itoa(MaxArgv))
 	}
 	for i, arg := range svc.Argv {
-		if err := validateText(fmt.Sprintf("argv[%d]", i), arg, MaxStringLen); err != nil {
+		if err := validateText(indexedField("argv", i), arg, MaxStringLen); err != nil {
 			return err
 		}
 		if arg == "" && i == 0 {
-			return fmt.Errorf("%w: empty argv[0]", ErrInvalidService)
+			return detail(ErrInvalidService, "empty argv[0]")
 		}
 	}
 	if len(svc.Env) > MaxEnv {
-		return fmt.Errorf("%w: env count %d > %d", ErrInvalidService, len(svc.Env), MaxEnv)
+		return detail(ErrInvalidService, "env count "+strconv.Itoa(len(svc.Env))+" > "+strconv.Itoa(MaxEnv))
 	}
 	for i, env := range svc.Env {
-		if err := validateText(fmt.Sprintf("env[%d]", i), env, MaxStringLen); err != nil {
+		if err := validateText(indexedField("env", i), env, MaxStringLen); err != nil {
 			return err
 		}
 		if !strings.Contains(env, "=") || strings.HasPrefix(env, "=") {
-			return fmt.Errorf("%w: malformed env[%d]", ErrInvalidEnv, i)
+			return detail(ErrInvalidEnv, "malformed env["+strconv.Itoa(i)+"]")
 		}
 	}
 	if !svc.Restart.Valid() {
-		return fmt.Errorf("%w: invalid restart policy %d", ErrInvalidService, svc.Restart)
+		return detail(ErrInvalidService, "invalid restart policy "+strconv.Itoa(int(svc.Restart)))
 	}
 	return nil
 }
 
 func validateText(field string, value string, maxLen int) error {
 	if len(value) > maxLen {
-		return fmt.Errorf("%w: %s too long", ErrInvalidString, field)
+		return detail(ErrInvalidString, field+" too long")
 	}
 	if !utf8.ValidString(value) {
-		return fmt.Errorf("%w: %s is not valid UTF-8", ErrInvalidString, field)
+		return detail(ErrInvalidString, field+" is not valid UTF-8")
 	}
 	if strings.IndexByte(value, 0) >= 0 {
-		return fmt.Errorf("%w: %s contains NUL", ErrInvalidString, field)
+		return detail(ErrInvalidString, field+" contains NUL")
 	}
 	return nil
+}
+
+func indexedField(name string, index int) string {
+	return name + "[" + strconv.Itoa(index) + "]"
 }

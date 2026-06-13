@@ -2,9 +2,9 @@ package initcfg
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/bartdeboer/go-tape/tape"
 )
@@ -40,7 +40,7 @@ func Encode(cfg Config) ([]byte, error) {
 		return nil, err
 	}
 	if len(data) > MaxConfigSize {
-		return nil, fmt.Errorf("%w: %d > %d", ErrConfigTooLarge, len(data), MaxConfigSize)
+		return nil, detail(ErrConfigTooLarge, strconv.Itoa(len(data))+" > "+strconv.Itoa(MaxConfigSize))
 	}
 	return data, nil
 }
@@ -76,7 +76,7 @@ func DecodeFile(path string) (Config, error) {
 		return Config{}, err
 	}
 	if info.Size() > MaxConfigSize {
-		return Config{}, fmt.Errorf("%w: %d > %d", ErrConfigTooLarge, info.Size(), MaxConfigSize)
+		return Config{}, detail(ErrConfigTooLarge, strconv.FormatInt(info.Size(), 10)+" > "+strconv.Itoa(MaxConfigSize))
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -87,7 +87,7 @@ func DecodeFile(path string) (Config, error) {
 
 func Decode(data []byte) (Config, error) {
 	if len(data) > MaxConfigSize {
-		return Config{}, fmt.Errorf("%w: %d > %d", ErrConfigTooLarge, len(data), MaxConfigSize)
+		return Config{}, detail(ErrConfigTooLarge, strconv.Itoa(len(data))+" > "+strconv.Itoa(MaxConfigSize))
 	}
 	r := tape.NewReader(data)
 	magic, err := r.ReadRaw(len(Magic))
@@ -102,27 +102,27 @@ func Decode(data []byte) (Config, error) {
 		return Config{}, err
 	}
 	if version != Version {
-		return Config{}, fmt.Errorf("%w: %d", ErrUnsupportedVersion, version)
+		return Config{}, detail(ErrUnsupportedVersion, strconv.Itoa(int(version)))
 	}
 	flags, err := r.ReadU16()
 	if err != nil {
 		return Config{}, err
 	}
 	if flags != Flags {
-		return Config{}, fmt.Errorf("%w: %d", ErrUnsupportedFlags, flags)
+		return Config{}, detail(ErrUnsupportedFlags, strconv.Itoa(int(flags)))
 	}
 	serviceCount, err := r.ReadU16()
 	if err != nil {
 		return Config{}, err
 	}
 	if int(serviceCount) > MaxServices {
-		return Config{}, fmt.Errorf("%w: %d > %d", ErrTooManyServices, serviceCount, MaxServices)
+		return Config{}, detail(ErrTooManyServices, strconv.Itoa(int(serviceCount))+" > "+strconv.Itoa(MaxServices))
 	}
 	cfg := Config{Services: make([]Service, 0, int(serviceCount))}
 	for i := 0; i < int(serviceCount); i++ {
 		svc, err := decodeService(r)
 		if err != nil {
-			return Config{}, fmt.Errorf("service %d: %w", i, err)
+			return Config{}, detail(err, "service "+strconv.Itoa(i))
 		}
 		cfg.Services = append(cfg.Services, svc)
 	}

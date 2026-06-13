@@ -12,3 +12,15 @@ var (
 	ErrInvalidString      = errors.New("initcfg: invalid string")
 	ErrInvalidEnv         = errors.New("initcfg: invalid env")
 )
+
+type detailError struct {
+	err    error
+	detail string
+}
+
+func (e detailError) Error() string { return e.err.Error() + ": " + e.detail }
+func (e detailError) Unwrap() error { return e.err }
+
+func detail(err error, text string) error {
+	return detailError{err: err, detail: text}
+}
