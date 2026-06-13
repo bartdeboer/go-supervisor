@@ -12,11 +12,11 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	services, err := initcfg.ReadConfigFile(configPath)
+	cfg, err := initcfg.ReadConfigFile(configPath)
 	if err != nil {
 		fatal(err)
 	}
-	fmt.Fprintf(os.Stderr, "ctg-init: loaded %d services\n", len(services))
+	fmt.Fprintf(os.Stderr, "ctg-init: loaded %d services\n", len(cfg.Services))
 	if park {
 		fmt.Fprintln(os.Stderr, "ctg-init: park mode requested")
 	}

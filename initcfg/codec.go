@@ -25,12 +25,8 @@ func WriteConfigFile(path string, services []Service) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-func ReadConfigFile(path string) ([]Service, error) {
-	cfg, err := DecodeFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return cfg.Services, nil
+func ReadConfigFile(path string) (Config, error) {
+	return DecodeFile(path)
 }
 
 func Encode(cfg Config) ([]byte, error) {

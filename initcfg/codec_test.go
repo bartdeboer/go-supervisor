@@ -37,7 +37,7 @@ func TestReadWriteConfigFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got, services) {
+	if !reflect.DeepEqual(got.Services, services) {
 		t.Fatalf("got %#v", got)
 	}
 }
