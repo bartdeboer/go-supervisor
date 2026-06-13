@@ -1,67 +1,91 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/bartdeboer/go-clir"
 	"github.com/bartdeboer/go-supervisor/initcfg"
 	"github.com/bartdeboer/go-supervisor/internal/defaults"
 )
 
+type app struct {
+	configPath string
+	out        io.Writer
+	err        io.Writer
+}
+
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	a := app{
+		configPath: defaults.ConfigPathFrom("", os.Getenv),
+		out:        os.Stdout,
+		err:        os.Stderr,
+	}
+	if err := run(context.Background(), a, os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprintln(os.Stderr, usage())
+		fmt.Fprintln(os.Stderr)
+		_ = newRouter(a).FPrintHelp(context.Background(), os.Stderr, nil)
 		os.Exit(2)
 	}
 }
 
-func run(args []string) error {
-	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		fmt.Println(usage())
-		return nil
+func run(ctx context.Context, a app, args []string) error {
+	r := newRouter(a)
+	if len(args) == 0 || clir.IsHelpRequest(args) {
+		return r.FPrintHelp(ctx, a.out, clir.StripHelpToken(args))
 	}
-	configPath := defaults.ConfigPathFrom("", os.Getenv)
-	switch args[0] {
-	case "service":
-		return runService(configPath, args[1:])
-	case "reload":
-		return reloadSupervisord()
-	default:
-		return fmt.Errorf("unknown command: %s", args[0])
-	}
+	return r.Run(ctx, args)
 }
 
-func runService(configPath string, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("missing service command")
-	}
-	switch args[0] {
-	case "list":
-		return listServices(configPath)
-	case "enable":
-		return enableService(configPath, args[1:])
-	case "remove":
-		if len(args) != 2 || strings.TrimSpace(args[1]) == "" {
-			return fmt.Errorf("usage: supervisor service remove <name>")
-		}
-		return removeService(configPath, args[1])
-	default:
-		return fmt.Errorf("unknown service command: %s", args[0])
-	}
+func newRouter(a app) *clir.Router {
+	r := clir.New()
+	r.Routes(func(b *clir.Builder) {
+		b.Describe("", "supervisor edits the durable supervisord service config.\n\nEnvironment:\n  SUPERVISORD_CONFIG  config path (default /home/agent/state/supervisord.config.bin)")
+		b.Route("service", func(b *clir.Builder) {
+			b.Describe("", "Service config commands.")
+			b.Handle("list", "List configured services", func(req *clir.Request) error {
+				if len(req.Extra) != 0 {
+					return unexpectedArgs(req.Extra)
+				}
+				return listServices(a)
+			})
+			b.Handle("enable", "Enable or replace one service", func(req *clir.Request) error {
+				return enableService(a, req.Extra)
+			})
+			b.Handle("remove <name>", "Remove one configured service", func(req *clir.Request) error {
+				if len(req.Extra) != 0 {
+					return unexpectedArgs(req.Extra)
+				}
+				return removeService(a, req.Params["name"])
+			})
+		})
+		b.Handle("reload", "Report reload behavior", func(req *clir.Request) error {
+			if len(req.Extra) != 0 {
+				return unexpectedArgs(req.Extra)
+			}
+			return reloadSupervisord(a)
+		})
+	})
+	return r
 }
 
-func listServices(configPath string) error {
-	cfg, err := readConfigIfPresent(configPath)
+func unexpectedArgs(args []string) error {
+	return fmt.Errorf("unexpected arguments: %s", strings.Join(args, " "))
+}
+
+func listServices(a app) error {
+	cfg, err := readConfigIfPresent(a.configPath)
 	if err != nil {
 		return err
 	}
 	if len(cfg.Services) == 0 {
-		fmt.Println("no services configured")
+		fmt.Fprintln(a.out, "no services configured")
 		return nil
 	}
 	for _, svc := range cfg.Services {
@@ -73,14 +97,14 @@ func listServices(configPath string) error {
 			line += fmt.Sprintf(" stop_timeout_ms=%d", svc.StopTimeoutMs)
 		}
 		line += " -- " + strings.Join(svc.Argv, " ")
-		fmt.Println(line)
+		fmt.Fprintln(a.out, line)
 	}
 	return nil
 }
 
-func enableService(configPath string, args []string) error {
+func enableService(a app, args []string) error {
 	fs := flag.NewFlagSet("supervisor service enable", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
+	fs.SetOutput(a.err)
 	name := fs.String("name", "", "service name; defaults to basename of executable")
 	cwd := fs.String("cwd", "", "working directory")
 	restart := fs.String("restart", "never", "restart policy: never, on-failure, always")
@@ -116,20 +140,20 @@ func enableService(configPath string, args []string) error {
 	if err := initcfg.ValidateService(svc); err != nil {
 		return err
 	}
-	cfg, err := readConfigIfPresent(configPath)
+	cfg, err := readConfigIfPresent(a.configPath)
 	if err != nil {
 		return err
 	}
 	cfg.Services = upsertService(cfg.Services, svc)
-	if err := writeConfig(configPath, cfg); err != nil {
+	if err := writeConfig(a.configPath, cfg); err != nil {
 		return err
 	}
-	fmt.Printf("enabled service: %s\n", svc.Name)
+	fmt.Fprintf(a.out, "enabled service: %s\n", svc.Name)
 	return nil
 }
 
-func removeService(configPath string, name string) error {
-	cfg, err := readConfigIfPresent(configPath)
+func removeService(a app, name string) error {
+	cfg, err := readConfigIfPresent(a.configPath)
 	if err != nil {
 		return err
 	}
@@ -147,10 +171,10 @@ func removeService(configPath string, name string) error {
 		return fmt.Errorf("service not found: %s", name)
 	}
 	cfg.Services = append([]initcfg.Service(nil), out...)
-	if err := writeConfig(configPath, cfg); err != nil {
+	if err := writeConfig(a.configPath, cfg); err != nil {
 		return err
 	}
-	fmt.Printf("removed service: %s\n", name)
+	fmt.Fprintf(a.out, "removed service: %s\n", name)
 	return nil
 }
 
@@ -180,8 +204,8 @@ func upsertService(services []initcfg.Service, svc initcfg.Service) []initcfg.Se
 	return append(out, svc)
 }
 
-func reloadSupervisord() error {
-	fmt.Println("reload pending: live supervisord reload is not implemented yet")
+func reloadSupervisord(a app) error {
+	fmt.Fprintln(a.out, "reload pending: live supervisord reload is not implemented yet")
 	return nil
 }
 
@@ -221,15 +245,4 @@ func restartName(policy initcfg.RestartPolicy) string {
 	default:
 		return fmt.Sprintf("unknown(%d)", policy)
 	}
-}
-
-func usage() string {
-	return `usage:
-  supervisor service list
-  supervisor service enable [--name <name>] [--cwd <dir>] [--restart never|on-failure|always] [--env KEY=VALUE] -- <command> [args...]
-  supervisor service remove <name>
-  supervisor reload
-
-environment:
-  SUPERVISORD_CONFIG  config path (default /home/agent/state/supervisord.config.bin)`
 }

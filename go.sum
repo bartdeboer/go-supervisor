@@ -1,2 +1,4 @@
+github.com/bartdeboer/go-clir v0.3.0 h1:p1A+8H1EdRZ3PhqnQdgUzMZAr9mLuiy4yHvfvUt1W2M=
+github.com/bartdeboer/go-clir v0.3.0/go.mod h1:GtEX7aOjpb8ei7NH5a09CacYPb6ZrG74/kGAY4iyyYU=
 github.com/bartdeboer/go-tape v0.0.1 h1:z5sTirTK+VMHrnjU0LY69yBbqw6jCkIofeY4oS3d+mk=
 github.com/bartdeboer/go-tape v0.0.1/go.mod h1:1PampVaQW3Tjk62F55KSbig4sUp6+4VWidaJMMd9aZk=
