@@ -14,6 +14,17 @@ loads the compiled config, starts configured services, reaps children through a
 single `wait4` path, restarts services according to policy, reloads on `SIGHUP`,
 and stops service process groups on `SIGTERM`/`SIGINT`/`SIGQUIT`.
 
+Reload semantics are deliberately fail-safe:
+
+- a valid config is reconciled with the running services,
+- a missing config is treated as an empty config and stops configured services,
+- a malformed config is ignored and the current services keep running.
+
+During reload, replacing a changed service waits for the old process group to
+stop before starting the new one. That keeps replacement simple and avoids
+double-running a service, but it also means a large reload can briefly delay
+handling another signal.
+
 ## Config path
 
 Both binaries resolve the config path as:
@@ -23,6 +34,9 @@ Both binaries resolve the config path as:
 3. `/home/agent/state/supervisord.config.bin`.
 
 The config format is owned by `initcfg` and encoded with `go-tape`.
+
+Service environment entries override inherited environment variables with the
+same key.
 
 ## Basic use
 

@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -19,6 +18,8 @@ import (
 const (
 	defaultStopTimeout = 5 * time.Second
 	restartDelay       = time.Second
+	maxRestartDelay    = 30 * time.Second
+	stableRuntime      = 10 * time.Second
 )
 
 func main() {
@@ -86,9 +87,11 @@ type daemon struct {
 }
 
 type serviceState struct {
-	spec        initcfg.Service
-	pid         int
-	desiredStop bool
+	spec            initcfg.Service
+	pid             int
+	desiredStop     bool
+	startedAt       time.Time
+	restartFailures int
 }
 
 func runDaemon(configPath string, cfg initcfg.Config) {
@@ -139,7 +142,7 @@ func (d *daemon) applyConfig(cfg initcfg.Config) {
 			delete(d.services, name)
 			continue
 		}
-		if reflect.DeepEqual(state.spec, svc) {
+		if sameService(state.spec, svc) {
 			continue
 		}
 		warn("restarting changed service: " + name)
@@ -175,7 +178,7 @@ func (d *daemon) startState(state *serviceState) {
 	}
 	cmd := exec.Command(state.spec.Argv[0], state.spec.Argv[1:]...)
 	cmd.Dir = state.spec.Cwd
-	cmd.Env = append(os.Environ(), state.spec.Env...)
+	cmd.Env = mergeEnv(os.Environ(), state.spec.Env)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -188,6 +191,7 @@ func (d *daemon) startState(state *serviceState) {
 	}
 	state.pid = cmd.Process.Pid
 	state.desiredStop = false
+	state.startedAt = time.Now()
 	d.byPID[state.pid] = state
 	warn("started service " + state.spec.Name + " pid=" + strconv.Itoa(state.pid))
 	if err := cmd.Process.Release(); err != nil {
@@ -255,6 +259,11 @@ func (d *daemon) reapPID(pid int, status syscall.WaitStatus) {
 		return
 	}
 	if shouldRestart(state.spec.Restart, status) {
+		if time.Since(state.startedAt) >= stableRuntime {
+			state.restartFailures = 0
+		} else {
+			state.restartFailures++
+		}
 		d.scheduleRestart(state)
 	}
 }
@@ -274,13 +283,81 @@ func (d *daemon) scheduleRestart(state *serviceState) {
 	if d.stopping || state == nil || d.services[state.spec.Name] != state {
 		return
 	}
-	time.AfterFunc(restartDelay, func() {
+	delay := restartBackoff(state.restartFailures)
+	warn("scheduling restart for " + state.spec.Name + " in " + delay.String())
+	name := state.spec.Name
+	time.AfterFunc(delay, func() {
 		select {
-		case d.restarts <- state.spec.Name:
+		case d.restarts <- name:
 		default:
-			warn("restart queue full; dropping restart for " + state.spec.Name)
+			warn("restart queue full; dropping restart for " + name)
 		}
 	})
+}
+
+func restartBackoff(failures int) time.Duration {
+	if failures <= 1 {
+		return restartDelay
+	}
+	delay := restartDelay
+	for i := 1; i < failures; i++ {
+		delay *= 2
+		if delay >= maxRestartDelay {
+			return maxRestartDelay
+		}
+	}
+	return delay
+}
+
+func sameService(a, b initcfg.Service) bool {
+	if a.Name != b.Name || a.Cwd != b.Cwd || a.Restart != b.Restart || a.StopTimeoutMs != b.StopTimeoutMs {
+		return false
+	}
+	if len(a.Argv) != len(b.Argv) || len(a.Env) != len(b.Env) {
+		return false
+	}
+	for i := range a.Argv {
+		if a.Argv[i] != b.Argv[i] {
+			return false
+		}
+	}
+	for i := range a.Env {
+		if a.Env[i] != b.Env[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func mergeEnv(base []string, overrides []string) []string {
+	out := append([]string(nil), base...)
+	positions := make(map[string]int, len(out)+len(overrides))
+	for i, entry := range out {
+		if key, ok := envKey(entry); ok {
+			positions[key] = i
+		}
+	}
+	for _, entry := range overrides {
+		key, ok := envKey(entry)
+		if !ok {
+			continue
+		}
+		if pos, exists := positions[key]; exists {
+			out[pos] = entry
+			continue
+		}
+		positions[key] = len(out)
+		out = append(out, entry)
+	}
+	return out
+}
+
+func envKey(entry string) (string, bool) {
+	idx := strings.IndexByte(entry, '=')
+	if idx <= 0 {
+		return "", false
+	}
+	return entry[:idx], true
 }
 
 func (d *daemon) shutdown() {
