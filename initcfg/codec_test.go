@@ -27,13 +27,13 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	}
 }
 
-func TestReadWriteConfigToTape(t *testing.T) {
+func TestReadWriteConfigFile(t *testing.T) {
 	services := []Service{{Name: "web", Argv: []string{"server"}, Restart: RestartNever}}
 	path := filepath.Join(t.TempDir(), "init.ctg")
-	if err := WriteConfigToTape(path, services); err != nil {
+	if err := WriteConfigFile(path, services); err != nil {
 		t.Fatal(err)
 	}
-	got, err := ReadConfigFromTape(path)
+	got, err := ReadConfigFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,7 +17,7 @@ const (
 	fieldStopTimeoutMs = uint8(0x06)
 )
 
-func WriteConfigToTape(path string, services []Service) error {
+func WriteConfigFile(path string, services []Service) error {
 	data, err := Encode(Config{Services: services})
 	if err != nil {
 		return err
@@ -25,7 +25,7 @@ func WriteConfigToTape(path string, services []Service) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-func ReadConfigFromTape(path string) ([]Service, error) {
+func ReadConfigFile(path string) ([]Service, error) {
 	cfg, err := DecodeFile(path)
 	if err != nil {
 		return nil, err
@@ -192,25 +192,25 @@ func decodeService(body []byte) (Service, error) {
 		fr := tape.NewReader(payload)
 		switch tag {
 		case fieldName:
-			v, err := readSmallString(fr, MaxNameLen)
+			v, err := fr.ReadString(MaxNameLen)
 			if err != nil {
 				return svc, err
 			}
 			svc.Name = v
 		case fieldCwd:
-			v, err := readSmallString(fr, MaxCwdLen)
+			v, err := fr.ReadString(MaxCwdLen)
 			if err != nil {
 				return svc, err
 			}
 			svc.Cwd = v
 		case fieldArgv:
-			v, err := readSmallStringList(fr, MaxArgv, MaxStringLen)
+			v, err := fr.ReadStringList(MaxArgv, MaxStringLen)
 			if err != nil {
 				return svc, err
 			}
 			svc.Argv = v
 		case fieldEnv:
-			v, err := readSmallStringList(fr, MaxEnv, MaxStringLen)
+			v, err := fr.ReadStringList(MaxEnv, MaxStringLen)
 			if err != nil {
 				return svc, err
 			}
@@ -261,7 +261,7 @@ func writeField(w *tape.Writer, tag uint8, payload []byte) error {
 
 func writeStringField(w *tape.Writer, tag uint8, value string, maxLen int) error {
 	pw := tape.NewWriter()
-	if err := writeSmallString(pw, value, maxLen); err != nil {
+	if err := pw.WriteString(value, maxLen); err != nil {
 		return err
 	}
 	payload, err := pw.Bytes()
@@ -273,7 +273,7 @@ func writeStringField(w *tape.Writer, tag uint8, value string, maxLen int) error
 
 func writeStringListField(w *tape.Writer, tag uint8, values []string, maxCount int, maxItemLen int) error {
 	pw := tape.NewWriter()
-	if err := writeSmallStringList(pw, values, maxCount, maxItemLen); err != nil {
+	if err := pw.WriteStringList(values, maxCount, maxItemLen); err != nil {
 		return err
 	}
 	payload, err := pw.Bytes()
@@ -301,72 +301,6 @@ func writeU32Field(w *tape.Writer, tag uint8, value uint32) error {
 		return err
 	}
 	return writeField(w, tag, payload)
-}
-
-func writeSmallString(w *tape.Writer, value string, maxLen int) error {
-	if err := validateText("string", value, maxLen); err != nil {
-		return err
-	}
-	if len(value) > int(^uint16(0)) {
-		return tape.ErrTooLarge
-	}
-	if err := w.WriteU16(uint16(len(value))); err != nil {
-		return err
-	}
-	return w.WriteRaw([]byte(value))
-}
-
-func readSmallString(r *tape.Reader, maxLen int) (string, error) {
-	n, err := r.ReadU16()
-	if err != nil {
-		return "", err
-	}
-	if int(n) > maxLen {
-		return "", tape.ErrTooLarge
-	}
-	b, err := r.ReadRaw(int(n))
-	if err != nil {
-		return "", err
-	}
-	v := string(b)
-	if err := validateText("string", v, maxLen); err != nil {
-		return "", err
-	}
-	return v, nil
-}
-
-func writeSmallStringList(w *tape.Writer, values []string, maxCount int, maxItemLen int) error {
-	if len(values) > maxCount || len(values) > int(^uint16(0)) {
-		return tape.ErrTooLarge
-	}
-	if err := w.WriteU16(uint16(len(values))); err != nil {
-		return err
-	}
-	for _, value := range values {
-		if err := writeSmallString(w, value, maxItemLen); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func readSmallStringList(r *tape.Reader, maxCount int, maxItemLen int) ([]string, error) {
-	count, err := r.ReadU16()
-	if err != nil {
-		return nil, err
-	}
-	if int(count) > maxCount {
-		return nil, tape.ErrTooLarge
-	}
-	out := make([]string, 0, int(count))
-	for i := 0; i < int(count); i++ {
-		v, err := readSmallString(r, maxItemLen)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, nil
 }
 
 func estimateConfigSize(cfg Config) int {

@@ -12,7 +12,7 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	services, err := initcfg.ReadConfigFromTape(configPath)
+	services, err := initcfg.ReadConfigFile(configPath)
 	if err != nil {
 		fatal(err)
 	}
