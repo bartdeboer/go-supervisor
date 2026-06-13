@@ -46,6 +46,7 @@ func waitForShutdownSignal() {
 }
 
 func parseArgs(args []string) (configPath string, park bool, fallback []string, err error) {
+	park = true
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--config":
@@ -56,6 +57,8 @@ func parseArgs(args []string) (configPath string, park bool, fallback []string, 
 			configPath = args[i]
 		case "--park":
 			park = true
+		case "--no-park":
+			park = false
 		case "--":
 			fallback = append([]string(nil), args[i+1:]...)
 			i = len(args)
@@ -82,5 +85,5 @@ func fatal(err error) {
 }
 
 func usage() string {
-	return "usage: supervisord [--config <path>] [--park] [-- <fallback> [args...]]"
+	return "usage: supervisord [--config <path>] [--no-park] [-- <fallback> [args...]]"
 }
