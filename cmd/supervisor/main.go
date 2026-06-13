@@ -59,12 +59,14 @@ func newRouter(a app) *clir.Router {
 			b.Handle("enable", "Enable or replace one service", func(req *clir.Request) error {
 				return enableService(a, req.Extra)
 			})
+			b.Describe("enable", "Enable or replace one service.\n\nUsage:\n  supervisor service enable [--name <name>] [--cwd <dir>] [--restart never|on-failure|always] [--stop-timeout-ms <ms>] [--env KEY=VALUE] -- <command> [args...]\n\nChanges are written to the durable config. Run `supervisor reload` to apply them to the running supervisord.")
 			b.Handle("remove <name>", "Remove one configured service", func(req *clir.Request) error {
 				if len(req.Extra) != 0 {
 					return unexpectedArgs(req.Extra)
 				}
 				return removeService(a, req.Params["name"])
 			})
+			b.Describe("remove <name>", "Remove one configured service from the durable config.\n\nUsage:\n  supervisor service remove <name>\n\nRun `supervisor reload` to apply the removal to the running supervisord.")
 		})
 		b.Handle("reload", "Signal running supervisord to reload config", func(req *clir.Request) error {
 			if len(req.Extra) != 0 {
@@ -72,6 +74,7 @@ func newRouter(a app) *clir.Router {
 			}
 			return reloadSupervisord(a)
 		})
+		b.Describe("reload", "Signal PID 1 supervisord to reload its durable config.\n\nUsage:\n  supervisor reload")
 	})
 	return r
 }
