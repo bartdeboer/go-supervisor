@@ -33,7 +33,7 @@ Both binaries resolve the config path as:
 2. `SUPERVISORD_CONFIG`,
 3. `/home/agent/state/supervisord.config.bin`.
 
-The config format is owned by `initcfg` and encoded with `go-tape`.
+The config format is owned by the root `supervisor` package and encoded with `go-tape`.
 
 Service environment entries override inherited environment variables with the
 same key.

@@ -12,7 +12,7 @@ import (
 	"syscall"
 
 	"github.com/bartdeboer/go-clir"
-	"github.com/bartdeboer/go-supervisor/initcfg"
+	supervisor "github.com/bartdeboer/go-supervisor"
 	"github.com/bartdeboer/go-supervisor/internal/defaults"
 )
 
@@ -133,7 +133,7 @@ func enableService(a app, args []string) error {
 	if serviceName == "" {
 		serviceName = filepath.Base(argv[0])
 	}
-	svc := initcfg.Service{
+	svc := supervisor.Service{
 		Name:          serviceName,
 		Cwd:           strings.TrimSpace(*cwd),
 		Argv:          append([]string(nil), argv...),
@@ -141,7 +141,7 @@ func enableService(a app, args []string) error {
 		Restart:       policy,
 		StopTimeoutMs: uint32(*stopTimeout),
 	}
-	if err := initcfg.ValidateService(svc); err != nil {
+	if err := supervisor.ValidateService(svc); err != nil {
 		return err
 	}
 	cfg, err := readConfigIfPresent(a.configPath)
@@ -175,7 +175,7 @@ func removeService(a app, name string) error {
 	if !removed {
 		return fmt.Errorf("service not found: %s", name)
 	}
-	cfg.Services = append([]initcfg.Service(nil), out...)
+	cfg.Services = append([]supervisor.Service(nil), out...)
 	if err := writeConfig(a.configPath, cfg); err != nil {
 		return err
 	}
@@ -184,23 +184,23 @@ func removeService(a app, name string) error {
 	return nil
 }
 
-func readConfigIfPresent(path string) (initcfg.Config, error) {
-	cfg, err := initcfg.ReadConfigFile(path)
+func readConfigIfPresent(path string) (supervisor.Config, error) {
+	cfg, err := supervisor.ReadConfigFile(path)
 	if err == nil {
 		return cfg, nil
 	}
 	if errors.Is(err, os.ErrNotExist) {
-		return initcfg.Config{}, nil
+		return supervisor.Config{}, nil
 	}
-	return initcfg.Config{}, err
+	return supervisor.Config{}, err
 }
 
-func writeConfig(path string, cfg initcfg.Config) error {
-	return initcfg.WriteConfigFile(path, cfg.Services)
+func writeConfig(path string, cfg supervisor.Config) error {
+	return supervisor.WriteConfigFile(path, cfg.Services)
 }
 
-func upsertService(services []initcfg.Service, svc initcfg.Service) []initcfg.Service {
-	out := append([]initcfg.Service(nil), services...)
+func upsertService(services []supervisor.Service, svc supervisor.Service) []supervisor.Service {
+	out := append([]supervisor.Service(nil), services...)
 	for i := range out {
 		if out[i].Name == svc.Name {
 			out[i] = svc
@@ -241,26 +241,26 @@ func (e *envFlags) Set(value string) error {
 	return nil
 }
 
-func parseRestart(value string) (initcfg.RestartPolicy, error) {
+func parseRestart(value string) (supervisor.RestartPolicy, error) {
 	switch strings.TrimSpace(value) {
 	case "", "never":
-		return initcfg.RestartNever, nil
+		return supervisor.RestartNever, nil
 	case "on-failure":
-		return initcfg.RestartOnFailure, nil
+		return supervisor.RestartOnFailure, nil
 	case "always":
-		return initcfg.RestartAlways, nil
+		return supervisor.RestartAlways, nil
 	default:
-		return initcfg.RestartNever, fmt.Errorf("unknown restart policy: %s", value)
+		return supervisor.RestartNever, fmt.Errorf("unknown restart policy: %s", value)
 	}
 }
 
-func restartName(policy initcfg.RestartPolicy) string {
+func restartName(policy supervisor.RestartPolicy) string {
 	switch policy {
-	case initcfg.RestartNever:
+	case supervisor.RestartNever:
 		return "never"
-	case initcfg.RestartOnFailure:
+	case supervisor.RestartOnFailure:
 		return "on-failure"
-	case initcfg.RestartAlways:
+	case supervisor.RestartAlways:
 		return "always"
 	default:
 		return fmt.Sprintf("unknown(%d)", policy)

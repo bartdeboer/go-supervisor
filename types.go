@@ -1,4 +1,4 @@
-package initcfg
+package supervisor
 
 const (
 	Magic   = "CTGINIT\x00"

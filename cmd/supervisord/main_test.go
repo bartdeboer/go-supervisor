@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bartdeboer/go-supervisor/initcfg"
+	supervisor "github.com/bartdeboer/go-supervisor"
 )
 
 func TestSupervisordMainHelper(t *testing.T) {
@@ -57,11 +57,11 @@ func TestRestartBackoffCaps(t *testing.T) {
 func TestDaemonStartsServiceAgainAfterRestart(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "supervisord.config.bin")
-	writeConfig(t, configPath, initcfg.Service{
+	writeConfig(t, configPath, supervisor.Service{
 		Name:    "bootmark",
 		Cwd:     dir,
 		Argv:    []string{"sh", "-c", "echo boot >> boot.log; sleep 30"},
-		Restart: initcfg.RestartNever,
+		Restart: supervisor.RestartNever,
 	})
 
 	for i := 0; i < 2; i++ {
@@ -74,22 +74,22 @@ func TestDaemonStartsServiceAgainAfterRestart(t *testing.T) {
 func TestDaemonRestartsOnFailureButNotSuccess(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "supervisord.config.bin")
-	writeConfig(t, configPath, initcfg.Service{
+	writeConfig(t, configPath, supervisor.Service{
 		Name:    "failer",
 		Cwd:     dir,
 		Argv:    []string{"sh", "-c", "echo fail >> fail.log; exit 7"},
-		Restart: initcfg.RestartOnFailure,
+		Restart: supervisor.RestartOnFailure,
 	})
 	cmd := startDaemon(t, configPath)
 	waitForLineCount(t, filepath.Join(dir, "fail.log"), 2, 5*time.Second)
 	stopDaemon(t, cmd)
 
 	configPath = filepath.Join(dir, "supervisord-success.config.bin")
-	writeConfig(t, configPath, initcfg.Service{
+	writeConfig(t, configPath, supervisor.Service{
 		Name:    "success",
 		Cwd:     dir,
 		Argv:    []string{"sh", "-c", "echo success >> success.log; exit 0"},
-		Restart: initcfg.RestartOnFailure,
+		Restart: supervisor.RestartOnFailure,
 	})
 	cmd = startDaemon(t, configPath)
 	waitForLineCount(t, filepath.Join(dir, "success.log"), 1, 3*time.Second)
@@ -107,11 +107,11 @@ func TestDaemonReloadAddMalformedThenRemove(t *testing.T) {
 	cmd := startDaemon(t, configPath)
 	time.Sleep(100 * time.Millisecond)
 
-	writeConfig(t, configPath, initcfg.Service{
+	writeConfig(t, configPath, supervisor.Service{
 		Name:    "ticker",
 		Cwd:     dir,
 		Argv:    []string{"sh", "-c", "while true; do echo tick >> ticks.log; sleep 0.1; done"},
-		Restart: initcfg.RestartAlways,
+		Restart: supervisor.RestartAlways,
 	})
 	signalDaemon(t, cmd, syscall.SIGHUP)
 	waitForLineCount(t, filepath.Join(dir, "ticks.log"), 2, 3*time.Second)
@@ -135,11 +135,11 @@ func TestDaemonReloadAddMalformedThenRemove(t *testing.T) {
 func TestDaemonShutdownKillsProcessGroup(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "supervisord.config.bin")
-	writeConfig(t, configPath, initcfg.Service{
+	writeConfig(t, configPath, supervisor.Service{
 		Name:    "group",
 		Cwd:     dir,
 		Argv:    []string{"sh", "-c", "sleep 60 & echo $! > grandchild.pid; wait"},
-		Restart: initcfg.RestartNever,
+		Restart: supervisor.RestartNever,
 	})
 	cmd := startDaemon(t, configPath)
 	pidPath := filepath.Join(dir, "grandchild.pid")
@@ -166,9 +166,9 @@ func valueOf(env []string, key string) string {
 	return ""
 }
 
-func writeConfig(t *testing.T, path string, services ...initcfg.Service) {
+func writeConfig(t *testing.T, path string, services ...supervisor.Service) {
 	t.Helper()
-	if err := initcfg.WriteConfigFile(path, services); err != nil {
+	if err := supervisor.WriteConfigFile(path, services); err != nil {
 		t.Fatal(err)
 	}
 }

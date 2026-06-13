@@ -1,4 +1,4 @@
-package initcfg
+package supervisor
 
 import (
 	"bytes"

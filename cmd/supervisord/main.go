@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bartdeboer/go-supervisor/initcfg"
+	supervisor "github.com/bartdeboer/go-supervisor"
 	"github.com/bartdeboer/go-supervisor/internal/defaults"
 )
 
@@ -50,32 +50,32 @@ func tuneRuntime() {
 	}
 }
 
-func loadConfig(path string, failOpen bool) initcfg.Config {
-	cfg, err := initcfg.ReadConfigFile(path)
+func loadConfig(path string, failOpen bool) supervisor.Config {
+	cfg, err := supervisor.ReadConfigFile(path)
 	if err == nil {
 		return cfg
 	}
 	if errors.Is(err, os.ErrNotExist) {
-		return initcfg.Config{}
+		return supervisor.Config{}
 	}
 	if failOpen {
 		warn("could not read config; parking with no services: " + err.Error())
-		return initcfg.Config{}
+		return supervisor.Config{}
 	}
 	fatal(err)
-	return initcfg.Config{}
+	return supervisor.Config{}
 }
 
-func reloadConfig(path string) (initcfg.Config, bool) {
-	cfg, err := initcfg.ReadConfigFile(path)
+func reloadConfig(path string) (supervisor.Config, bool) {
+	cfg, err := supervisor.ReadConfigFile(path)
 	if err == nil {
 		return cfg, true
 	}
 	if errors.Is(err, os.ErrNotExist) {
-		return initcfg.Config{}, true
+		return supervisor.Config{}, true
 	}
 	warn("could not reload config; keeping current services: " + err.Error())
-	return initcfg.Config{}, false
+	return supervisor.Config{}, false
 }
 
 type daemon struct {
@@ -87,19 +87,19 @@ type daemon struct {
 }
 
 type serviceState struct {
-	spec            initcfg.Service
+	spec            supervisor.Service
 	pid             int
 	desiredStop     bool
 	startedAt       time.Time
 	restartFailures int
 }
 
-func runDaemon(configPath string, cfg initcfg.Config) {
+func runDaemon(configPath string, cfg supervisor.Config) {
 	d := &daemon{
 		configPath: configPath,
 		services:   map[string]*serviceState{},
 		byPID:      map[int]*serviceState{},
-		restarts:   make(chan string, initcfg.MaxServices),
+		restarts:   make(chan string, supervisor.MaxServices),
 	}
 	d.applyConfig(cfg)
 
@@ -128,8 +128,8 @@ func runDaemon(configPath string, cfg initcfg.Config) {
 	}
 }
 
-func (d *daemon) applyConfig(cfg initcfg.Config) {
-	desired := map[string]initcfg.Service{}
+func (d *daemon) applyConfig(cfg supervisor.Config) {
+	desired := map[string]supervisor.Service{}
 	for _, svc := range cfg.Services {
 		desired[svc.Name] = svc
 	}
@@ -184,7 +184,7 @@ func (d *daemon) startState(state *serviceState) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		warn("start failed for " + state.spec.Name + ": " + err.Error())
-		if state.spec.Restart != initcfg.RestartNever {
+		if state.spec.Restart != supervisor.RestartNever {
 			d.scheduleRestart(state)
 		}
 		return
@@ -268,11 +268,11 @@ func (d *daemon) reapPID(pid int, status syscall.WaitStatus) {
 	}
 }
 
-func shouldRestart(policy initcfg.RestartPolicy, status syscall.WaitStatus) bool {
+func shouldRestart(policy supervisor.RestartPolicy, status syscall.WaitStatus) bool {
 	switch policy {
-	case initcfg.RestartAlways:
+	case supervisor.RestartAlways:
 		return true
-	case initcfg.RestartOnFailure:
+	case supervisor.RestartOnFailure:
 		return !status.Exited() || status.ExitStatus() != 0
 	default:
 		return false
@@ -309,7 +309,7 @@ func restartBackoff(failures int) time.Duration {
 	return delay
 }
 
-func sameService(a, b initcfg.Service) bool {
+func sameService(a, b supervisor.Service) bool {
 	if a.Name != b.Name || a.Cwd != b.Cwd || a.Restart != b.Restart || a.StopTimeoutMs != b.StopTimeoutMs {
 		return false
 	}
@@ -427,7 +427,7 @@ func (d *daemon) maxStopTimeout() time.Duration {
 	return max
 }
 
-func stopTimeout(svc initcfg.Service) time.Duration {
+func stopTimeout(svc supervisor.Service) time.Duration {
 	if svc.StopTimeoutMs == 0 {
 		return defaultStopTimeout
 	}
