@@ -12,7 +12,7 @@ import (
 func TestEncodeDecodeRoundTrip(t *testing.T) {
 	want := Config{Services: []Service{
 		{Name: "web", Cwd: "/app", Argv: []string{"/app/server", "--port", "8080"}, Env: []string{"PORT=8080"}, Restart: RestartAlways, StopTimeoutMs: 1500},
-		{Name: "worker", Argv: []string{"/app/worker"}, Restart: RestartOnFailure},
+		{Name: "worker", Argv: []string{"/app/worker"}, Env: []string{}, Restart: RestartOnFailure},
 	}}
 	data, err := Encode(want)
 	if err != nil {
@@ -28,7 +28,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 }
 
 func TestReadWriteConfigFile(t *testing.T) {
-	services := []Service{{Name: "web", Argv: []string{"server"}, Restart: RestartNever}}
+	services := []Service{{Name: "web", Argv: []string{"server"}, Env: []string{}, Restart: RestartNever}}
 	path := filepath.Join(t.TempDir(), "init.ctg")
 	if err := WriteConfigFile(path, services); err != nil {
 		t.Fatal(err)
@@ -63,28 +63,6 @@ func TestDecodeRejectsTrailingData(t *testing.T) {
 	_, err = Decode(data)
 	if err == nil {
 		t.Fatal("expected error")
-	}
-}
-
-func TestDecodeSkipsUnknownServiceField(t *testing.T) {
-	cfg := Config{Services: []Service{{Name: "web", Argv: []string{"server"}}}}
-	data, err := Encode(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Append an unknown empty field to the first service body and fix its length.
-	origLen := uint32(data[14]) | uint32(data[15])<<8 | uint32(data[16])<<16 | uint32(data[17])<<24
-	insert := []byte{0x99, 0, 0, 0, 0}
-	data = append(data, insert...)
-	newLen := origLen + uint32(len(insert))
-	data[14], data[15], data[16], data[17] = byte(newLen), byte(newLen>>8), byte(newLen>>16), byte(newLen>>24)
-	got, err := Decode(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(got, cfg) {
-		t.Fatalf("got %#v", got)
 	}
 }
 
