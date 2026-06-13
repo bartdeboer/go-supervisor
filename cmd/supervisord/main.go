@@ -8,9 +8,8 @@ import (
 	"syscall"
 
 	"github.com/bartdeboer/go-supervisor/initcfg"
+	"github.com/bartdeboer/go-supervisor/internal/defaults"
 )
-
-const defaultConfigPath = "/home/agent/state/supervisord.config.bin"
 
 func main() {
 	configPath, park, fallback, err := parseArgs(os.Args[1:])
@@ -39,10 +38,35 @@ func main() {
 }
 
 func waitForShutdownSignal() {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
-	sig := <-signals
-	fmt.Fprintf(os.Stderr, "supervisord: received %s; exiting\n", sig)
+	signals := make(chan os.Signal, 8)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGCHLD)
+	for {
+		sig := <-signals
+		switch sig {
+		case syscall.SIGCHLD:
+			reapExitedChildren()
+		default:
+			fmt.Fprintf(os.Stderr, "supervisord: received %s; exiting\n", sig)
+			reapExitedChildren()
+			return
+		}
+	}
+}
+
+func reapExitedChildren() {
+	for {
+		var status syscall.WaitStatus
+		pid, err := syscall.Wait4(-1, &status, syscall.WNOHANG, nil)
+		if pid > 0 {
+			fmt.Fprintf(os.Stderr, "supervisord: reaped child pid=%d status=%d\n", pid, status)
+			continue
+		}
+		if pid == 0 || errors.Is(err, syscall.ECHILD) {
+			return
+		}
+		fmt.Fprintf(os.Stderr, "supervisord: reap error: %v\n", err)
+		return
+	}
 }
 
 func parseArgs(args []string) (configPath string, park bool, fallback []string, err error) {
@@ -68,9 +92,7 @@ func parseArgs(args []string) (configPath string, park bool, fallback []string, 
 			return "", false, nil, fmt.Errorf("unknown argument: %s", args[i])
 		}
 	}
-	if configPath == "" {
-		configPath = defaultConfigPath
-	}
+	configPath = defaults.ConfigPathFrom(configPath, os.Getenv)
 	return configPath, park, fallback, nil
 }
 

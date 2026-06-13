@@ -9,9 +9,8 @@ import (
 	"strings"
 
 	"github.com/bartdeboer/go-supervisor/initcfg"
+	"github.com/bartdeboer/go-supervisor/internal/defaults"
 )
-
-const defaultConfigPath = "/home/agent/state/supervisord.config.bin"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -26,12 +25,10 @@ func run(args []string) error {
 		fmt.Println(usage())
 		return nil
 	}
-	configPath := getenv("SUPERVISORD_CONFIG", defaultConfigPath)
+	configPath := defaults.ConfigPathFrom("", os.Getenv)
 	switch args[0] {
 	case "service":
 		return runService(configPath, args[1:])
-	case "status":
-		return listServices(configPath)
 	case "reload":
 		return reloadSupervisord()
 	default:
@@ -128,7 +125,7 @@ func enableService(configPath string, args []string) error {
 		return err
 	}
 	fmt.Printf("enabled service: %s\n", svc.Name)
-	return reloadSupervisord()
+	return nil
 }
 
 func removeService(configPath string, name string) error {
@@ -154,7 +151,7 @@ func removeService(configPath string, name string) error {
 		return err
 	}
 	fmt.Printf("removed service: %s\n", name)
-	return reloadSupervisord()
+	return nil
 }
 
 func readConfigIfPresent(path string) (initcfg.Config, error) {
@@ -184,7 +181,7 @@ func upsertService(services []initcfg.Service, svc initcfg.Service) []initcfg.Se
 }
 
 func reloadSupervisord() error {
-	// The PID file and SIGHUP handoff land with the supervisord runtime loop.
+	fmt.Println("reload pending: live supervisord reload is not implemented yet")
 	return nil
 }
 
@@ -226,20 +223,11 @@ func restartName(policy initcfg.RestartPolicy) string {
 	}
 }
 
-func getenv(key string, fallback string) string {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return fallback
-	}
-	return value
-}
-
 func usage() string {
 	return `usage:
   supervisor service list
   supervisor service enable [--name <name>] [--cwd <dir>] [--restart never|on-failure|always] [--env KEY=VALUE] -- <command> [args...]
   supervisor service remove <name>
-  supervisor status
   supervisor reload
 
 environment:
