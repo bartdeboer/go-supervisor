@@ -7,14 +7,13 @@ const (
 )
 
 const (
-	MaxConfigSize        = 256 * 1024
-	MaxServices          = 64
-	MaxServiceRecordSize = 64 * 1024
-	MaxStringLen         = 4096
-	MaxArgv              = 128
-	MaxEnv               = 256
-	MaxNameLen           = 128
-	MaxCwdLen            = 4096
+	MaxConfigSize = 256 * 1024
+	MaxServices   = 64
+	MaxStringLen  = 4096
+	MaxArgv       = 128
+	MaxEnv        = 256
+	MaxNameLen    = 128
+	MaxCwdLen     = 4096
 )
 
 type Config struct {
