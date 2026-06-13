@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
 	"github.com/bartdeboer/go-supervisor/initcfg"
@@ -12,6 +13,8 @@ import (
 )
 
 func main() {
+	tuneRuntime()
+
 	configPath, park, fallback, err := parseArgs(os.Args[1:])
 	if err != nil {
 		fatal(err)
@@ -35,6 +38,14 @@ func main() {
 		waitForShutdownSignal()
 	}
 	// Full runtime supervision intentionally follows in the next slice.
+}
+
+func tuneRuntime() {
+	// supervisord is an event loop, not a CPU-bound worker. Keeping a single P
+	// trims the parked PID-1 footprint while still allowing operators to opt out.
+	if os.Getenv("GOMAXPROCS") == "" {
+		runtime.GOMAXPROCS(1)
+	}
 }
 
 func waitForShutdownSignal() {
