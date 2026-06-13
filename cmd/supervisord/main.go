@@ -1,8 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/bartdeboer/go-supervisor/initcfg"
 )
@@ -16,7 +19,11 @@ func main() {
 	}
 	cfg, err := initcfg.ReadConfigFile(configPath)
 	if err != nil {
-		fatal(err)
+		if errors.Is(err, os.ErrNotExist) {
+			cfg = initcfg.Config{}
+		} else {
+			fatal(err)
+		}
 	}
 	fmt.Fprintf(os.Stderr, "supervisord: loaded %d services\n", len(cfg.Services))
 	if park {
@@ -25,7 +32,17 @@ func main() {
 	if len(fallback) > 0 {
 		fmt.Fprintf(os.Stderr, "supervisord: fallback command configured: %v\n", fallback)
 	}
-	// Runtime supervision intentionally follows in the next slice.
+	if park {
+		waitForShutdownSignal()
+	}
+	// Full runtime supervision intentionally follows in the next slice.
+}
+
+func waitForShutdownSignal() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	sig := <-signals
+	fmt.Fprintf(os.Stderr, "supervisord: received %s; exiting\n", sig)
 }
 
 func parseArgs(args []string) (configPath string, park bool, fallback []string, err error) {
