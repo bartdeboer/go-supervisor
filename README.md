@@ -8,8 +8,8 @@ Small standalone supervisor tools for durable sandbox services.
   sandbox container.
 - `supervisorctl` is the human/agent-facing companion CLI for editing the
   durable service config.
-- `supervisor` remains a compatibility alias for `supervisorctl` during the
-  command-name transition.
+- `supervisor` runs one foreground CLI process and restarts it according to a
+  selected exit policy.
 
 `supervisord` intentionally avoids the companion CLI dependencies. The daemon
 loads the compiled config, starts configured services, reaps children through a
@@ -49,3 +49,12 @@ supervisorctl service remove web
 ```
 
 `supervisorctl reload` sends `SIGHUP` to `supervisord` when it is PID 1.
+
+Use `supervisor` when a command should remain attached to the current terminal:
+
+```bash
+supervisor [--restart=complete|error|never|code] [--restart-code=<n>] <command> [args...]
+```
+
+On macOS and Linux, `SIGUSR1` asks `supervisor` to restart its child. Interrupt
+and termination signals stop the child and supervisor together.
