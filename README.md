@@ -6,8 +6,10 @@ Small standalone supervisor tools for durable sandbox services.
 
 - `supervisord` is the tiny data-plane daemon intended to run as PID 1 in a
   sandbox container.
-- `supervisor` is the human/agent-facing companion CLI for editing the durable
-  service config.
+- `supervisorctl` is the human/agent-facing companion CLI for editing the
+  durable service config.
+- `supervisor` remains a compatibility alias for `supervisorctl` during the
+  command-name transition.
 
 `supervisord` intentionally avoids the companion CLI dependencies. The daemon
 loads the compiled config, starts configured services, reaps children through a
@@ -41,9 +43,9 @@ same key.
 ## Basic use
 
 ```bash
-supervisor service enable --name web --cwd /home/agent/services/web -- ./web-server
-supervisor service list
-supervisor service remove web
+supervisorctl service enable --name web --cwd /home/agent/services/web -- ./web-server
+supervisorctl service list
+supervisorctl service remove web
 ```
 
-`supervisor reload` sends `SIGHUP` to `supervisord` when it is PID 1.
+`supervisorctl reload` sends `SIGHUP` to `supervisord` when it is PID 1.
